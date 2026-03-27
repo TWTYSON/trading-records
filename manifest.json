@@ -2,7 +2,7 @@
   "name": "合約交易紀錄",
   "short_name": "交易紀錄",
   "description": "幣安合約交易紀錄工具",
-  "start_url": "/",
+  "start_url": "/trading-records/",
   "display": "standalone",
   "background_color": "#0f172a",
   "theme_color": "#0f172a",
