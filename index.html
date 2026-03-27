@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#0f172a">
+  <title>合約交易紀錄</title>
+  <link rel="manifest" href="manifest.json">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --border: #334155;
+      --primary: #3b82f6;
+      --long: #22c55e;
+      --short: #ef4444;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+    }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, 'Segoe UI', sans-serif;
+      min-height: 100dvh;
+      padding-bottom: 70px;
+    }
+    .header {
+      background: var(--card);
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .header h1 { font-size: 18px; font-weight: 700; }
+    .tab-bar {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      background: var(--card);
+      border-top: 1px solid var(--border);
+      display: flex;
+      z-index: 10;
+    }
+    .tab-item {
+      flex: 1; padding: 12px 0;
+      text-align: center; cursor: pointer;
+      font-size: 12px; color: var(--muted);
+      transition: color 0.2s;
+    }
+    .tab-item.active { color: var(--primary); }
+    .tab-item svg { display: block; margin: 0 auto 4px; }
+    .page { display: none; padding: 16px; }
+    .page.active { display: block; }
+    .card {
+      background: var(--card);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+      border: 1px solid var(--border);
+    }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .stat-card {
+      background: var(--card);
+      border-radius: 12px;
+      padding: 16px;
+      border: 1px solid var(--border);
+    }
+    .stat-label { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    .stat-value { font-size: 22px; font-weight: 700; }
+    .stat-value.positive { color: var(--long); }
+    .stat-value.negative { color: var(--short); }
+    .form-group { margin-bottom: 16px; }
+    .form-label { font-size: 13px; color: var(--muted); margin-bottom: 6px; display: block; }
+    .form-input {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      color: var(--text);
+      font-size: 16px;
+    }
+    .form-input:focus { outline: none; border-color: var(--primary); }
+    .dir-buttons { display: flex; gap: 10px; }
+    .dir-btn {
+      flex: 1; padding: 14px;
+      border-radius: 8px;
+      border: 2px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      font-size: 16px; font-weight: 600;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .dir-btn.long.active { border-color: var(--long); background: rgba(34,197,94,0.1); color: var(--long); }
+    .dir-btn.short.active { border-color: var(--short); background: rgba(239,68,68,0.1); color: var(--short); }
+    .lev-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+    .lev-btn {
+      padding: 8px 14px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      font-size: 14px; cursor: pointer;
+      transition: all 0.2s;
+    }
+    .lev-btn.active { border-color: var(--primary); background: rgba(59,130,246,0.1); color: var(--primary); }
+    .btn-primary {
+      width: 100%; padding: 14px;
+      border-radius: 10px; border: none;
+      background: var(--primary); color: white;
+      font-size: 16px; font-weight: 600;
+      cursor: pointer; margin-top: 8px;
+    }
+    .btn-primary:active { opacity: 0.8; }
+    .trade-item {
+      background: var(--card);
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 10px;
+      border: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+    .trade-coin { font-size: 16px; font-weight: 700; }
+    .trade-meta { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .trade-pnl { font-size: 18px; font-weight: 700; text-align: right; }
+    .trade-pnl.positive { color: var(--long); }
+    .trade-pnl.negative { color: var(--short); }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px; border-radius: 4px;
+      font-size: 11px; font-weight: 600; margin-right: 4px;
+    }
+    .badge.long { background: rgba(34,197,94,0.15); color: var(--long); }
+    .badge.short { background: rgba(239,68,68,0.15); color: var(--short); }
+    .empty { text-align: center; color: var(--muted); padding: 40px 20px; line-height: 1.8; }
+    .row-inputs { display: flex; gap: 10px; }
+    .row-inputs .form-group { flex: 1; }
+    .filter-bar { display: flex; gap: 8px; margin-bottom: 12px; overflow-x: auto; padding-bottom: 4px; }
+    .filter-btn {
+      padding: 6px 14px; border-radius: 20px;
+      border: 1px solid var(--border);
+      background: transparent; color: var(--muted);
+      font-size: 13px; white-space: nowrap; cursor: pointer;
+    }
+    .filter-btn.active { border-color: var(--primary); background: rgba(59,130,246,0.1); color: var(--primary); }
+    .section-title { font-size: 14px; color: var(--muted); margin-bottom: 10px; }
+    .btn-delete {
+      background: none; border: none;
+      color: var(--muted); font-size: 12px;
+      cursor: pointer; padding: 0; margin-top: 6px;
+    }
+    .btn-delete:active { color: var(--short); }
+    .export-btn {
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--text); padding: 10px 16px;
+      border-radius: 8px; font-size: 14px;
+      cursor: pointer; width: 100%; margin-bottom: 12px;
+    }
+    .toast {
+      position: fixed; bottom: 80px; left: 50%;
+      transform: translateX(-50%);
+      background: var(--long); color: white;
+      padding: 10px 20px; border-radius: 20px;
+      font-size: 14px; z-index: 999;
+      animation: fadeIn 0.2s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateX(-50%) translateY(10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+    .lev-custom { width: 65px; padding: 8px 10px; }
+    select.form-input { appearance: none; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1 id="page-title">📊 總覽</h1>
+  <span style="font-size:12px;color:var(--muted);" id="header-sub"></span>
+</div>
+
+<!-- 總覽 -->
+<div id="page-dashboard" class="page active">
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-label">總盈虧 (USDT)</div>
+      <div class="stat-value" id="total-pnl">+0.00</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">總交易筆數</div>
+      <div class="stat-value" id="total-trades">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">勝率</div>
+      <div class="stat-value" id="win-rate">0%</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">本月盈虧</div>
+      <div class="stat-value" id="month-pnl">+0.00</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-title">勝負分布</div>
+    <div style="background:rgba(239,68,68,0.2);border-radius:6px;overflow:hidden;height:10px;margin-bottom:8px;">
+      <div id="win-bar" style="height:100%;background:var(--long);width:0%;transition:width 0.6s;border-radius:6px;"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:13px;">
+      <span style="color:var(--long);">獲利 <b id="win-count">0</b> 筆</span>
+      <span style="color:var(--muted);"><b id="be-count">0</b> 筆持平</span>
+      <span style="color:var(--short);">虧損 <b id="loss-count">0</b> 筆</span>
+    </div>
+  </div>
+
+  <div class="section-title">最近 5 筆</div>
+  <div id="recent-trades"></div>
+</div>
+
+<!-- 新增 -->
+<div id="page-add" class="page">
+  <div class="card">
+    <div class="form-group">
+      <label class="form-label">幣種</label>
+      <input type="text" class="form-input" id="input-coin"
+             placeholder="BTC、ETH、SOL..." autocomplete="off"
+             autocapitalize="characters" style="text-transform:uppercase">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">方向</label>
+      <div class="dir-buttons">
+        <button class="dir-btn long" onclick="setDirection('long')">▲ 做多 Long</button>
+        <button class="dir-btn short" onclick="setDirection('short')">▼ 做空 Short</button>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">槓桿</label>
+      <div class="lev-buttons">
+        <button class="lev-btn" onclick="setLeverage(5,this)">5x</button>
+        <button class="lev-btn" onclick="setLeverage(10,this)">10x</button>
+        <button class="lev-btn" onclick="setLeverage(20,this)">20x</button>
+        <button class="lev-btn" onclick="setLeverage(50,this)">50x</button>
+        <button class="lev-btn" onclick="setLeverage(100,this)">100x</button>
+        <input type="number" class="form-input lev-custom" id="input-lev-custom"
+               placeholder="自訂" inputmode="numeric"
+               oninput="setLeverageCustom(parseInt(this.value)||0)">
+      </div>
+    </div>
+
+    <div class="row-inputs">
+      <div class="form-group">
+        <label class="form-label">開倉均價</label>
+        <input type="number" class="form-input" id="input-entry"
+               placeholder="0.00" inputmode="decimal" oninput="calcPnl()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">平倉均價</label>
+        <input type="number" class="form-input" id="input-exit"
+               placeholder="0.00" inputmode="decimal" oninput="calcPnl()">
+      </div>
+    </div>
+
+    <div class="row-inputs">
+      <div class="form-group">
+        <label class="form-label">保證金 (USDT)</label>
+        <input type="number" class="form-input" id="input-margin"
+               placeholder="0" inputmode="decimal" oninput="calcPnl()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">手續費 (USDT)</label>
+        <input type="number" class="form-input" id="input-fee"
+               placeholder="0" inputmode="decimal" oninput="calcPnl()">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">
+        盈虧 (USDT)
+        <span style="color:var(--muted);font-size:11px;"> — 自動計算，可手動覆蓋</span>
+      </label>
+      <input type="number" class="form-input" id="input-pnl"
+             placeholder="0.00" inputmode="decimal"
+             style="font-size:22px;font-weight:700;text-align:center;">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">日期</label>
+      <input type="date" class="form-input" id="input-date">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">備註（進場理由、心得）</label>
+      <input type="text" class="form-input" id="input-notes" placeholder="選填">
+    </div>
+
+    <button class="btn-primary" onclick="saveTrade()">儲存紀錄</button>
+  </div>
+</div>
+
+<!-- 歷史 -->
+<div id="page-history" class="page">
+  <button class="export-btn" onclick="exportCSV()">📥 匯出 CSV</button>
+  <div class="filter-bar">
+    <button class="filter-btn active" onclick="filterTrades('all',this)">全部</button>
+    <button class="filter-btn" onclick="filterTrades('long',this)">做多</button>
+    <button class="filter-btn" onclick="filterTrades('short',this)">做空</button>
+    <button class="filter-btn" onclick="filterTrades('profit',this)">獲利</button>
+    <button class="filter-btn" onclick="filterTrades('loss',this)">虧損</button>
+  </div>
+  <div id="trade-list"></div>
+</div>
+
+<!-- Tab Bar -->
+<div class="tab-bar">
+  <div class="tab-item active" onclick="showPage('dashboard',this)">
+    <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
+      <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>
+    </svg>
+    總覽
+  </div>
+  <div class="tab-item" onclick="showPage('add',this)">
+    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="12" y1="8" x2="12" y2="16"/>
+      <line x1="8" y1="12" x2="16" y2="12"/>
+    </svg>
+    新增
+  </div>
+  <div class="tab-item" onclick="showPage('history',this)">
+    <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
+      <path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/>
+    </svg>
+    歷史
+  </div>
+</div>
+
+<script>
+let trades = JSON.parse(localStorage.getItem('bnTrades') || '[]');
+let currentDir = null;
+let currentLev = null;
+let currentFilter = 'all';
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('input-date').value = todayStr();
+  updateDashboard();
+});
+
+function todayStr() {
+  return new Date().toISOString().split('T')[0];
+}
+
+// --- Navigation ---
+function showPage(name, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  el.classList.add('active');
+  const titles = { dashboard: '📊 總覽', add: '✏️ 新增紀錄', history: '📋 歷史紀錄' };
+  document.getElementById('page-title').textContent = titles[name];
+  if (name === 'dashboard') updateDashboard();
+  if (name === 'history') renderTradeList();
+}
+
+// --- Direction ---
+function setDirection(dir) {
+  currentDir = dir;
+  document.querySelectorAll('.dir-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector('.dir-btn.' + dir).classList.add('active');
+  calcPnl();
+}
+
+// --- Leverage ---
+function setLeverage(val, btn) {
+  currentLev = val;
+  document.getElementById('input-lev-custom').value = '';
+  document.querySelectorAll('.lev-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  calcPnl();
+}
+function setLeverageCustom(val) {
+  currentLev = val;
+  document.querySelectorAll('.lev-btn').forEach(b => b.classList.remove('active'));
+  calcPnl();
+}
+
+// --- PnL auto-calc ---
+function calcPnl() {
+  const entry  = parseFloat(document.getElementById('input-entry').value);
+  const exit   = parseFloat(document.getElementById('input-exit').value);
+  const margin = parseFloat(document.getElementById('input-margin').value);
+  const fee    = parseFloat(document.getElementById('input-fee').value) || 0;
+  const lev    = currentLev || 1;
+
+  if (entry > 0 && exit > 0 && margin > 0 && currentDir) {
+    const pos = margin * lev;
+    const pnl = currentDir === 'long'
+      ? (exit - entry) / entry * pos - fee
+      : (entry - exit) / entry * pos - fee;
+    const el = document.getElementById('input-pnl');
+    el.value = pnl.toFixed(2);
+    el.style.color = pnl >= 0 ? '#22c55e' : '#ef4444';
+  }
+}
+
+// --- Save ---
+function saveTrade() {
+  const coin = document.getElementById('input-coin').value.trim().toUpperCase();
+  if (!coin) return alert('請輸入幣種');
+  if (!currentDir) return alert('請選擇做多或做空');
+  const pnlRaw = document.getElementById('input-pnl').value;
+  if (pnlRaw === '') return alert('請輸入或自動計算盈虧');
+
+  const trade = {
+    id: Date.now().toString(),
+    date: document.getElementById('input-date').value || todayStr(),
+    coin,
+    direction: currentDir,
+    leverage: currentLev || 1,
+    entryPrice: parseFloat(document.getElementById('input-entry').value) || 0,
+    exitPrice:  parseFloat(document.getElementById('input-exit').value)  || 0,
+    margin:     parseFloat(document.getElementById('input-margin').value) || 0,
+    fee:        parseFloat(document.getElementById('input-fee').value)   || 0,
+    pnl:        parseFloat(pnlRaw),
+    notes:      document.getElementById('input-notes').value.trim(),
+  };
+
+  trades.unshift(trade);
+  localStorage.setItem('bnTrades', JSON.stringify(trades));
+  resetForm();
+  showToast('✓ 紀錄已儲存');
+  setTimeout(() => document.querySelector('.tab-item').click(), 600);
+}
+
+function resetForm() {
+  ['input-coin','input-entry','input-exit','input-margin','input-fee','input-pnl','input-notes','input-lev-custom']
+    .forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('input-pnl').style.color = '';
+  document.getElementById('input-date').value = todayStr();
+  document.querySelectorAll('.dir-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.lev-btn').forEach(b => b.classList.remove('active'));
+  currentDir = null; currentLev = null;
+}
+
+// --- Toast ---
+function showToast(msg, color) {
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = msg;
+  if (color) t.style.background = color;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2000);
+}
+
+// --- Dashboard ---
+function updateDashboard() {
+  const totalPnl = trades.reduce((s, t) => s + t.pnl, 0);
+  const wins   = trades.filter(t => t.pnl > 0).length;
+  const losses = trades.filter(t => t.pnl < 0).length;
+  const bes    = trades.filter(t => t.pnl === 0).length;
+  const winRate = trades.length ? (wins / trades.length * 100).toFixed(1) : 0;
+
+  const now = new Date();
+  const monthPnl = trades
+    .filter(t => { const d = new Date(t.date); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); })
+    .reduce((s, t) => s + t.pnl, 0);
+
+  setPnlEl('total-pnl', totalPnl);
+  setPnlEl('month-pnl', monthPnl);
+  document.getElementById('total-trades').textContent = trades.length;
+
+  const wrEl = document.getElementById('win-rate');
+  wrEl.textContent = winRate + '%';
+  wrEl.className = 'stat-value ' + (parseFloat(winRate) >= 50 ? 'positive' : 'negative');
+
+  document.getElementById('win-count').textContent  = wins;
+  document.getElementById('loss-count').textContent = losses;
+  document.getElementById('be-count').textContent   = bes;
+  document.getElementById('win-bar').style.width    = winRate + '%';
+
+  const el = document.getElementById('recent-trades');
+  const recent = trades.slice(0, 5);
+  el.innerHTML = recent.length
+    ? recent.map(tradeHTML).join('')
+    : '<div class="empty">還沒有交易紀錄<br>點下方「新增」開始記錄 ✏️</div>';
+}
+
+function setPnlEl(id, val) {
+  const el = document.getElementById(id);
+  el.textContent = (val >= 0 ? '+' : '') + val.toFixed(2);
+  el.className = 'stat-value ' + (val >= 0 ? 'positive' : 'negative');
+}
+
+// --- Trade HTML ---
+function tradeHTML(t) {
+  const sign = t.pnl >= 0 ? '+' : '';
+  const cls  = t.pnl > 0 ? 'positive' : t.pnl < 0 ? 'negative' : '';
+  const roiStr = (t.margin > 0 && t.leverage > 0)
+    ? `${sign}${(t.pnl / t.margin * 100).toFixed(1)}%`
+    : '';
+  return `
+  <div class="trade-item">
+    <div>
+      <div class="trade-coin">${t.coin}USDT</div>
+      <div class="trade-meta">
+        <span class="badge ${t.direction}">${t.direction === 'long' ? '做多' : '做空'}</span>
+        ${t.leverage}x &nbsp;·&nbsp; ${t.date}
+      </div>
+      ${t.entryPrice ? `<div class="trade-meta">開 ${t.entryPrice} → 收 ${t.exitPrice}</div>` : ''}
+      ${t.notes ? `<div class="trade-meta" style="margin-top:2px;font-style:italic;">${t.notes}</div>` : ''}
+      <button class="btn-delete" onclick="deleteTrade('${t.id}')">刪除</button>
+    </div>
+    <div style="text-align:right;min-width:80px;">
+      <div class="trade-pnl ${cls}">${sign}${t.pnl.toFixed(2)}</div>
+      ${roiStr ? `<div class="trade-meta">${roiStr}</div>` : ''}
+    </div>
+  </div>`;
+}
+
+// --- History ---
+function renderTradeList() {
+  let list = [...trades];
+  if (currentFilter === 'long')   list = list.filter(t => t.direction === 'long');
+  if (currentFilter === 'short')  list = list.filter(t => t.direction === 'short');
+  if (currentFilter === 'profit') list = list.filter(t => t.pnl > 0);
+  if (currentFilter === 'loss')   list = list.filter(t => t.pnl < 0);
+  const el = document.getElementById('trade-list');
+  el.innerHTML = list.length
+    ? list.map(tradeHTML).join('')
+    : '<div class="empty">沒有符合的紀錄</div>';
+}
+
+function filterTrades(type, el) {
+  currentFilter = type;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  renderTradeList();
+}
+
+function deleteTrade(id) {
+  if (!confirm('確定刪除此筆紀錄？')) return;
+  trades = trades.filter(t => t.id !== id);
+  localStorage.setItem('bnTrades', JSON.stringify(trades));
+  renderTradeList();
+  updateDashboard();
+}
+
+// --- Export CSV ---
+function exportCSV() {
+  if (!trades.length) return alert('沒有資料可匯出');
+  const headers = ['日期','幣種','方向','槓桿','開倉價','平倉價','保證金','手續費','盈虧(USDT)','備註'];
+  const rows = trades.map(t => [
+    t.date, t.coin,
+    t.direction === 'long' ? '做多' : '做空',
+    t.leverage, t.entryPrice, t.exitPrice,
+    t.margin, t.fee, t.pnl, `"${t.notes}"`
+  ]);
+  const csv = '\ufeff' + [headers, ...rows].map(r => r.join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = `trades_${todayStr()}.csv`;
+  a.click();
+}
+
+// --- PWA Service Worker ---
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>
